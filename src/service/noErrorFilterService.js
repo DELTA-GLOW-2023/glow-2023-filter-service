@@ -82,18 +82,17 @@ const isEnglishLang = async (text) => {
     const result = await cld.detect(text)
     const language = result.languages[0].name
     // matin polla beauty gevaar Gefahr zabic matar
-    console.log(`The word "${text}" is the following: ${language}`)
-    console.log(JSON.stringify(language))
     return language === "ENGLISH";
 }
 
 export const noErrorFilter = async(text) => {
 
-    // Verifying the language of the word
+    // Verifying the language of the text
     const isEnglish = await isEnglishLang(text)
 
+    // If the language is not English, return an empty string
     if (!isEnglish)
-        return []
+        return ""
 
     // Step 0: transform the sentence into an array of single words
     let words = text.toLowerCase().split(" ")
@@ -108,5 +107,5 @@ export const noErrorFilter = async(text) => {
 
 
     // Step 4: All the words that passed previous steps are sent to the Stable Diffusion
-    return allWords
+    return allWords.join(" ")
 }

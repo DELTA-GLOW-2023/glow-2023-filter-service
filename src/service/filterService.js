@@ -100,5 +100,5 @@ export const filter = async(text) => {
 
 
     // Step 4: All the words that passed previous steps are sent to the Stable Diffusion
-    return allWords
+    return allWords.join(" ")
 }
