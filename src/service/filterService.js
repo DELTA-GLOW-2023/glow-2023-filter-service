@@ -3,6 +3,7 @@ import profanityLib from '@2toad/profanity';
 import {readFileSync} from "fs"
 import cld from "cld"
 import LanguageDetect from "languagedetect"
+import {filterStatements} from "./statementFilter.js";
 
 
 const profanityList = readFileSync("src/data/profanity_list.txt").toString().toLowerCase()
@@ -108,6 +109,9 @@ const isEnglishLang = async (text) => {
 export const filter = async(text) => {
     // Verifying the language used
     await isEnglishLang(text)
+
+    // Step -1: Verify that the text doesn't include forbidden statements
+    await filterStatements(text, true)
 
     // Step 0: transform the sentence into an array of single words
     let words = text.toLowerCase().split(" ")
