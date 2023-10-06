@@ -14,6 +14,8 @@ const goodWords = goodWordList.split("\r\n")
 const forbidWordsList = readFileSync("src/data/forbidden_words.txt").toString().toLowerCase()
 const forbidWords = forbidWordsList.split("\r\n")
 
+const stopWordsList = readFileSync("src/data/stop_words.txt").toString().toLowerCase()
+const stopWords = stopWordsList.split("\r\n")
 
 // Setting Profanity checker to detect the words that include forbidden/profanity words.
 // For example: "assessment" will be detected as a forbidden/profanity, because it has "ass" in it.
@@ -23,13 +25,22 @@ options.wholeWord = false;
 const profanity = new profanityLib.Profanity(options)
 profanity.addWords(profanityWords)
 profanity.addWords(forbidWords)
-// TODO: check "eighteen plus" prompt
 
 // Set a second language detection
 const lngDetector = new LanguageDetect();
 
-// TODO: add to bad words: "cut", "execute", "hard", "hurt", "ill", "grave", "lose", "miss", "body",
-//  "repel (?)", "adult (?) (like adult content)", "sick", "satisfy", "communist"
+// This method removes all the "unnecessary" words from the input
+const filterStopWords = async (words) => {
+    const newWords = []
+    for (let i = 0; i < words.length; i++) {
+        if (stopWords.includes(words[i]))
+            continue
+        newWords.push(words[i])
+    }
+
+    return newWords
+}
+
 const filterForbiddenWords = async (allWords) => {
 
     // Allocate a pipeline for sentiment-analysis
@@ -45,18 +56,8 @@ const filterForbiddenWords = async (allWords) => {
     for (let i = 0; i < allWords.length; i++) {
         const word = allWords[i]
 
-        // Verifying the language of the word
-        // await isEnglishLang(word)
-
-
-        // TODO:
-        //  Step 1: check the "forbidden words". If there are any, get rid of them.
-        //  Try to do it by including the whole list to the 2Toad profanity object.
-        //  If it doesn't work (or works improperly), then just filter words if they are a part of the list.
-
         // Step 1.5: check for "profanity" and remove any words that are in the list.
         if (profanity.exists(word)) {
-            // TODO improve this method, as it works improperly
             continue
         }
 
@@ -122,7 +123,7 @@ export const noErrorFilter = async(text) => {
     // Verifying the language of the text
     const isEnglish = await isEnglishLang(text)
 
-    text = await filterStatements(text, false)
+    text = await filterStatements(text.toLowerCase(), false)
 
     // If the language is not English, return an empty string
     if (!isEnglish)
@@ -131,7 +132,9 @@ export const noErrorFilter = async(text) => {
     // Step 0: transform the sentence into an array of single words
     let words = text.toLowerCase().split(" ")
 
-    const {correctWords, doubleCheckList} = await filterForbiddenWords(words)
+    const newWords = await filterStopWords(words)
+
+    const {correctWords, doubleCheckList} = await filterForbiddenWords(newWords)
 
     const filteredWords = await filterGoodWords(doubleCheckList, correctWords)
 

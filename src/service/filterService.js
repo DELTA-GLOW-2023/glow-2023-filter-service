@@ -5,7 +5,6 @@ import cld from "cld"
 import LanguageDetect from "languagedetect"
 import {filterStatements} from "./statementFilter.js";
 
-
 const profanityList = readFileSync("src/data/profanity_list.txt").toString().toLowerCase()
 const profanityWords = profanityList.split("\r\n")
 
@@ -15,6 +14,9 @@ const goodWords = goodWordList.split("\r\n")
 const forbidWordsList = readFileSync("src/data/forbidden_words.txt").toString().toLowerCase()
 const forbidWords = forbidWordsList.split("\r\n")
 
+const stopWordsList = readFileSync("src/data/stop_words.txt").toString().toLowerCase()
+const stopWords = stopWordsList.split("\r\n")
+
 // Setting Profanity checker to detect the words that include forbidden/profanity words.
 // For example: "assessment" will be detected as a forbidden/profanity, because it has "ass" in it.
 const options = new profanityLib.ProfanityOptions();
@@ -23,16 +25,22 @@ options.wholeWord = false;
 const profanity = new profanityLib.Profanity(options)
 profanity.addWords(profanityWords)
 profanity.addWords(forbidWords)
-// TODO: check "eighteen plus" prompt
 
 // Set a second language detection
 const lngDetector = new LanguageDetect();
 
-// TODO: add to bad words: "cut", "execute", "hard", "hurt", "ill", "grave", "lose", "miss", "body",
-//  "repel (?)", "adult (?) (like adult content)", "sick", "satisfy", "communist"
+// This method removes all the "unnecessary" words from the input
+const filterStopWords = async (words) => {
+    const newWords = []
+    for (let i = 0; i < words.length; i++) {
+        if (stopWords.includes(words[i]))
+            continue
+        newWords.push(words[i])
+    }
 
-// TODO:
-//  Filter on "forbidden statements" before everything else
+    return newWords
+}
+
 const filterForbiddenWords = async (allWords) => {
 
     // Allocate a pipeline for sentiment-analysis
@@ -111,12 +119,14 @@ export const filter = async(text) => {
     await isEnglishLang(text)
 
     // Step -1: Verify that the text doesn't include forbidden statements
-    await filterStatements(text, true)
+    await filterStatements(text.toLowerCase(), true)
 
     // Step 0: transform the sentence into an array of single words
-    let words = text.toLowerCase().split(" ")
+    const words = text.toLowerCase().split(" ")
 
-    let {allWords, doubleCheckList} = await filterForbiddenWords(words)
+    const newWords = await filterStopWords(words)
+
+    let {allWords, doubleCheckList} = await filterForbiddenWords(newWords)
 
     allWords = await filterGoodWords(doubleCheckList, allWords)
 
