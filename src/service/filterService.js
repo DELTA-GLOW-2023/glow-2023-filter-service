@@ -2,29 +2,45 @@ import {pipeline} from '@xenova/transformers';
 import profanityLib from '@2toad/profanity';
 import {readFileSync} from "fs"
 import cld from "cld"
-
+import LanguageDetect from "languagedetect"
+import {filterStatements} from "./statementFilter.js";
 
 const profanityList = readFileSync("src/data/profanity_list.txt").toString().toLowerCase()
 const profanityWords = profanityList.split("\r\n")
 
-const goodWordList = readFileSync("src/data/good_words_list.txt").toString()
+const goodWordList = readFileSync("src/data/good_words_list.txt").toString().toLowerCase()
 const goodWords = goodWordList.split("\r\n")
 
 const forbidWordsList = readFileSync("src/data/forbidden_words.txt").toString().toLowerCase()
 const forbidWords = forbidWordsList.split("\r\n")
 
-// Setting Profanity checker to detect the words that include smth words.
-// For example: "assessment" will be detected as a "smth"
+const stopWordsList = readFileSync("src/data/stop_words.txt").toString().toLowerCase()
+const stopWords = stopWordsList.split("\r\n")
+
+// Setting Profanity checker to detect the words that include forbidden/profanity words.
+// For example: "assessment" will be detected as a forbidden/profanity, because it has "ass" in it.
 const options = new profanityLib.ProfanityOptions();
 options.wholeWord = false;
 
 const profanity = new profanityLib.Profanity(options)
 profanity.addWords(profanityWords)
 profanity.addWords(forbidWords)
-// TODO: check "eighteen plus" prompt
 
-// TODO: add to bad words: "cut", "execute", "hard", "hurt", "ill", "grave", "lose", "miss", "body",
-//  "repel (?)", "adult (?) (like adult content)", "sick", "satisfy", "communist"
+// Set a second language detection
+const lngDetector = new LanguageDetect();
+
+// This method removes all the "unnecessary" words from the input
+const filterStopWords = async (words) => {
+    const newWords = []
+    for (let i = 0; i < words.length; i++) {
+        if (stopWords.includes(words[i]))
+            continue
+        newWords.push(words[i])
+    }
+
+    return newWords
+}
+
 const filterForbiddenWords = async (allWords) => {
 
     // Allocate a pipeline for sentiment-analysis
@@ -36,10 +52,7 @@ const filterForbiddenWords = async (allWords) => {
 
     for (let i = 0; i < allWords.length; i++) {
         const word = allWords[i]
-        // TODO:
-        //  Step 1: check the "forbidden words". If there are any, get rid of them.
-        //  Try to do it by including the whole list to the 2Toad profanity object.
-        //  If it doesn't work (or works improperly), then just filter words if they are a part of the list.
+
 
         // Step 1.5: check for "profanity" and remove any words that are in the list.
         if (profanity.exists(word)) {
@@ -76,10 +89,28 @@ const filterGoodWords = async (doubleCheckList, allWords) => {
 }
 
 const isEnglishLang = async (text) => {
-    const result = await cld.detect(text)
-    const language = result.languages[0].name
-    // matin polla beauty gevaar Gefahr zabic matar
-    if (language !== "ENGLISH")
+    let isEnglish
+    try {
+        const result = await cld.detect(text)
+        const language = result.languages[0].name
+        // matin polla beauty gevaar Gefahr zabic matar
+        isEnglish = language === "ENGLISH"
+    } catch (er) {
+        // If the first "language verification" fails because of not enough prompts,
+        // verify the language with another tool
+        const languages = lngDetector.detect(text)
+        for (let i = 0; i < languages.length; i++) {
+            if (languages[i][0] === "english") {
+                // If the proximity of English is lower than 0.18,
+                // then we assume that the language is not english
+                isEnglish = languages[i][1] >= 0.18
+            }
+            // Note: the second verification is not perfect, so there is a chance that
+            // the English language will have proximity lower than 0.18.
+            // However, the chances of that are significantly low
+        }
+    }
+    if (!isEnglish)
         throw Error("Only English language is allowed")
 }
 
@@ -87,10 +118,15 @@ export const filter = async(text) => {
     // Verifying the language used
     await isEnglishLang(text)
 
-    // Step 0: transform the sentence into an array of single words
-    let words = text.toLowerCase().split(" ")
+    // Step -1: Verify that the text doesn't include forbidden statements
+    await filterStatements(text.toLowerCase(), true)
 
-    let {allWords, doubleCheckList} = await filterForbiddenWords(words)
+    // Step 0: transform the sentence into an array of single words
+    const words = text.toLowerCase().split(" ")
+
+    const newWords = await filterStopWords(words)
+
+    let {allWords, doubleCheckList} = await filterForbiddenWords(newWords)
 
     allWords = await filterGoodWords(doubleCheckList, allWords)
 
@@ -100,5 +136,5 @@ export const filter = async(text) => {
 
 
     // Step 4: All the words that passed previous steps are sent to the Stable Diffusion
-    return allWords
+    return allWords.join(" ")
 }

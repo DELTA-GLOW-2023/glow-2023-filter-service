@@ -14,14 +14,14 @@ router.post("/", async(req, res) => {
     try {
         const finalPrompt = await filter(prompt)
         console.log("Here are the last words: " + finalPrompt)
-        return res.json({prompts: finalPrompt})
+        return res.json({prompt: finalPrompt})
     } catch (er) {
         console.error(er)
         return res
             // TODO consider making the status dynamic from the "er" object
             //  if it takes too much time, leave the Bad Request status
             .status(400)
-            .json({ Message: er.message})
+            .json({ message: er.message})
     }
 })
 
@@ -32,14 +32,14 @@ router.post("/no-error", async(req, res) => {
 
     try {
         const finalPrompt = await noErrorFilter(prompt)
-        return res.json({prompts: finalPrompt})
+        return res.json({prompt: finalPrompt})
     } catch (er) {
         console.error(er)
         return res
             // TODO consider making the status dynamic from the "er" object
             //  if it takes too much time, leave the Bad Request status
             .status(500)
-            .json({ Message: "Something went wrong"})
+            .json({ message: "Something went wrong"})
     }
 })
 
