@@ -43,47 +43,15 @@ const filterStopWords = async (words) => {
 
 const filterForbiddenWords = async (allWords) => {
 
-    // Allocate a pipeline for sentiment-analysis
-    let pipe = await pipeline("text-classification",'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
-
-    // An array of words that should be checked through "good word list"
-    // after being "rejected" by the model (model output was "NEGATIVE")
-    let doubleCheckList = []
-
     for (let i = 0; i < allWords.length; i++) {
         const word = allWords[i]
 
-
         // Step 1.5: check for "profanity" and remove any words that are in the list.
         if (profanity.exists(word)) {
+            console.log("The forbidden word is --- " + word)
             throw Error("One of the written words is not allowed. Please try again")
-        }
-
-        // Step 2: check the words with the model. If the word is "POSITIVE" it passes to step 4, if it is "NEGATIVE" it goes to step 3
-        // The NEGATIVE words are added to the "doubleCheckList"
-
-        const result = await pipe(word);
-
-        if (result[0].label === "NEGATIVE") {
-            doubleCheckList.push(word)
         }
     }
-
-    return {allWords, doubleCheckList}
-}
-
-const filterGoodWords = async (doubleCheckList, allWords) => {
-    // Step 3: check the "NEGATIVE" words with the "permitted words" (e.g. "sad", "disappointed").
-    // If the received word is in the list, it goes to step 4. If it is not, get rid of it.
-    doubleCheckList.forEach( word => {
-        // If a word in the "doubleCheckList" doesn't exist in the "good_words_list"
-        // then we consider it a "bad word" and remove from the "allWords".
-        if (!goodWords.includes(word)) {
-            throw Error("One of the written words is not allowed. Please try again")
-        }
-        // If the word is in the "good_words_list", then we keep it in the "allWords"
-        // and don't do anything with it here
-    })
 
     return allWords
 }
@@ -124,17 +92,13 @@ export const filter = async(text) => {
     // Step 0: transform the sentence into an array of single words
     const words = text.toLowerCase().split(" ")
 
-    const newWords = await filterStopWords(words)
+    // Doesn't work intended. Can fix it later if needed
+    // const newWords = await filterStopWords(words)
 
-    let {allWords, doubleCheckList} = await filterForbiddenWords(newWords)
+    let filteredWords = await filterForbiddenWords(words)
 
-    allWords = await filterGoodWords(doubleCheckList, allWords)
-
-
-    console.log("The words that went through: " + allWords)
-    console.log("The words to double check: " + doubleCheckList)
-
+    console.log("The words that went through: " + filteredWords)
 
     // Step 4: All the words that passed previous steps are sent to the Stable Diffusion
-    return allWords.join(" ")
+    return filteredWords.join(" ")
 }
